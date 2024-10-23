@@ -7,11 +7,21 @@
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
 typedef struct {
-    int product_id;
+    int chave; //product id  
     float price;
     int category;
     int brand;
-} Product;
+    int elo;
+    bool removido;
+} Produto;
+
+typedef struct {
+    int chave; // user_id
+    char event_time[50];
+    char event_type[15];
+    int elo;
+    bool removido;
+} Usuario;
 
 struct Indice {
     int chave;
@@ -23,11 +33,6 @@ struct Registro_Extensao {
     Registro registro;
     int next;
     int prev;
-};
-
-struct Produto {
-    int chave;
-    int teste;
 };
 
 #define TAMANHO_EXTENSAO 100

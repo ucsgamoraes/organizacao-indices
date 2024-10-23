@@ -9,6 +9,81 @@
 #define TAMANHO_EXTENSAO 100
 
 template <typename Registro>
+void recriar_arquivos(std::FILE* dados_arq, std::FILE* indice_arq) {
+    int extensao_end = -1, num_registros = 1;
+    Registro registros[REGISTROS_POR_BLOCO * 5];
+
+    std::FILE* novo_dados = std::fopen("dados2.bin", "wb+");
+    std::FILE* novo_indice = std::fopen("indice2.bin", "wb+");
+
+    std::fseek(novo_indice, sizeof(int), SEEK_SET);
+    std::fseek(dados_arq, 0, SEEK_SET);
+
+    int block_index = 0;
+    int last_block_end = -1;
+    int indice_entradas = 0;
+    Indice ind;
+
+    while (num_registros != 0) {
+        num_registros = std::fread(&registros, sizeof(Registro), REGISTROS_POR_BLOCO, dados_arq);
+        extensao_end = -1;
+
+        if (num_registros == REGISTROS_POR_BLOCO) {
+            std::fread(&extensao_end, sizeof(int), 1, dados_arq);
+        }
+
+        int i = num_registros;
+
+        if (extensao_end != -1) {
+            int extensao_index = extensao_end / sizeof(Registro_Extensao<Registro>);
+            Registro_Extensao<Registro>* current = &EXTENSAO[extensao_index];
+            int next_index = 0, next_pos = 0;
+
+            while (next_index != -1) {
+                registros[i] = current->registro;
+                next_pos = current->next;
+                next_index = next_pos / sizeof(Registro_Extensao<Registro>);
+                current = &EXTENSAO[next_index];
+                i++;
+            }
+        }
+
+        int ext = 0;
+        int j = 0;
+        while (j < i) {
+            if (last_block_end == -1) {
+                last_block_end = block_index * sizeof(Registro);
+            }
+
+            std::fwrite(&registros[j], sizeof(Registro), 1, novo_dados);
+            if ((block_index + 1) % REGISTROS_POR_BLOCO == 0 || j == i - 1) {
+                std::fwrite(&ext, sizeof(int), 1, novo_dados);
+                ind.end = last_block_end;
+                ind.chave = registros[j].product_id;
+                std::fwrite(&ind, sizeof(Indice), 1, novo_indice);
+                indice_entradas++;
+                last_block_end = -1;
+            }
+            block_index++;
+            j++;
+        }
+    }
+
+    std::fseek(novo_indice, 0, SEEK_SET);
+    std::fwrite(&indice_entradas, sizeof(int), 1, novo_indice);
+
+    std::fclose(novo_indice);
+    std::fclose(novo_dados);
+    std::fclose(dados_arq);
+    std::fclose(indice_arq);
+
+    std::remove("dados.bin");
+    std::remove("indice.bin");
+    std::rename("indice2.bin", "indice.bin");
+    std::rename("dados2.bin", "dados.bin");
+}
+
+template <typename Registro>
 void inicializar_extensao() {
     for (int i = 0; i < TAMANHO_EXTENSAO; ++i) {
         EXTENSAO<Registro>[i] = {0};
@@ -69,7 +144,6 @@ int insert_extension(Registro* r, int extensao_end) {
     return 0;
 }
 
-// Replacing std::fstream with std::FILE functions
 template <typename Registro>
 Indice pesquisa_binaria(int chave, int count, FILE* indice, int* pos) {
     int mid = 0, high = count - 1, low = 0;
@@ -115,7 +189,6 @@ void recuperar_extensao() {
     std::fclose(extensao_arq);
 }
 
-// Replacing std::fstream with std::FILE functions
 template <typename Registro>
 void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Registro dados) {
     int bloco_escolhido = -1;
@@ -188,6 +261,8 @@ void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Regis
         }
     }
 }
+
+//implementar função de busca e remoção
 
 int main() {
     inicializar_extensao<Produto>();
