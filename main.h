@@ -10,7 +10,7 @@ typedef struct {
     int chave; //product id  
     float price;
     int category;
-    int brand;
+    char brand[40];
     int elo;
     bool removido;
 } Produto;
@@ -18,7 +18,7 @@ typedef struct {
 typedef struct {
     int chave; // user_id
     char event_time[50];
-    char event_type[15];
+    char event_type[10];
     int elo;
     bool removido;
 } Usuario;
