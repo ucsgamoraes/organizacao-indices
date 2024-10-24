@@ -35,19 +35,27 @@ struct Registro_Extensao {
     int prev;
 };
 
+//EXTENSAO
 #define TAMANHO_EXTENSAO 100
-Registro_Extensao<Produto> EXTENSAO[TAMANHO_EXTENSAO];
+#define PRODUTOS_EXTENSAO_NAME "produtos_extensao"
+#define USUARIOS_EXTENSAO_NAME "usuarios_extensao"
+
+Registro_Extensao<Produto> EXTENSAO_PRODUTOS[TAMANHO_EXTENSAO] = {0};
+Registro_Extensao<Usuario> EXTENSAO_USUARIOS[TAMANHO_EXTENSAO] = {0};
 
 int extensao_count;
 
 template <typename Registro>
-void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Registro dados);
+void recriar_arquivos(std::FILE* dados_arq, std::FILE* indice_arq, Registro_Extensao<Registro>* EXTENSAO);
 
 template <typename Registro>
-void recuperar_extensao();
+void salvar_extensao(std::string file_name, Registro_Extensao<Registro>* EXTENSAO);
 
 template <typename Registro>
-Indice pesquisa_binaria(int chave, int count, FILE* indice, int* pos);
+void recuperar_extensao(std::string file_name, Registro_Extensao<Registro>* EXTENSAO);
 
 template <typename Registro>
-int insert_extension(Registro* r, int extensao_end);
+int insert_extension(Registro* r, int extensao_end, Registro_Extensao<Registro>* EXTENSAO, int &extensao_count);
+
+template <typename Registro>
+void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Registro dados, Registro_Extensao<Registro>* EXTENSAO, int& count);

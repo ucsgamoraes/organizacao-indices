@@ -9,7 +9,7 @@
 #define TAMANHO_EXTENSAO 100
 
 template <typename Registro>
-void recriar_arquivos(std::FILE* dados_arq, std::FILE* indice_arq) {
+void recriar_arquivos(std::FILE* dados_arq, std::FILE* indice_arq, Registro_Extensao<Registro>* EXTENSAO) {
     int extensao_end = -1, num_registros = 1;
     Registro registros[REGISTROS_POR_BLOCO * 5];
 
@@ -84,27 +84,35 @@ void recriar_arquivos(std::FILE* dados_arq, std::FILE* indice_arq) {
 }
 
 template <typename Registro>
-void inicializar_extensao() {
-    for (int i = 0; i < TAMANHO_EXTENSAO; ++i) {
-        EXTENSAO<Registro>[i] = {0};
-    }
+void salvar_extensao(std::string file_name, Registro_Extensao<Registro>* EXTENSAO) {
+    FILE* extensao_arq = std::fopen(file_name.c_str(), "wb");
+    std::fwrite(EXTENSAO, sizeof(Registro_Extensao<Registro>), extensao_count, extensao_arq);
+    std::fclose(extensao_arq);
 }
 
-int extensao_count = 0;
+template <typename Registro>
+void recuperar_extensao(std::string file_name, Registro_Extensao<Registro>* EXTENSAO) {
+    FILE* extensao_arq = std::fopen(file_name.c_str(), "rb");
+    extensao_count = std::fread(EXTENSAO, sizeof(Registro_Extensao<Registro>), 100, extensao_arq);
+    std::fclose(extensao_arq);
+}
+
+int extensao_count_produtos = 0;
+int extensao_count_usuarios = 0;
 
 template <typename Registro>
-int insert_extension(Registro* r, int extensao_end) {
+int insert_extension(Registro* r, int extensao_end, Registro_Extensao<Registro>* EXTENSAO, int &extensao_count) {
     std::cout << r->chave << " para a extensao " << extensao_end << std::endl;
 
     if (extensao_end == -1) {
         int new_pos = extensao_count * sizeof(Registro_Extensao<Registro>);
-        EXTENSAO<Registro>[extensao_count] = {r->chave, 9, -1, -1};
+        EXTENSAO[extensao_count] = {r->chave, 9, -1, -1};
         extensao_count++;
         return new_pos;
     }
 
     int extensao_index = extensao_end / sizeof(Registro_Extensao<Registro>);
-    Registro_Extensao<Registro>* current = &EXTENSAO<Registro>[extensao_index];
+    Registro_Extensao<Registro>* current = &EXTENSAO[extensao_index];
     int current_pos = extensao_end;
     int i = 0;
 
@@ -116,12 +124,12 @@ int insert_extension(Registro* r, int extensao_end) {
         if (current->registro.chave > r->chave) {
             int new_pos = extensao_count * sizeof(Registro_Extensao<Registro>);
 
-            EXTENSAO<Registro>[extensao_count] = {r->chave, 9, current_pos, current->prev};
+            EXTENSAO[extensao_count] = {r->chave, 9, current_pos, current->prev};
             int prev_index = current->prev / sizeof(Registro_Extensao<Registro>);
             if (prev_index != -1) {
-                EXTENSAO<Registro>[prev_index].next = new_pos;
+                EXTENSAO[prev_index].next = new_pos;
             }
-            int new_ext_pos = EXTENSAO<Registro>[extensao_count].prev == -1 ? new_pos : extensao_end;
+            int new_ext_pos = EXTENSAO[extensao_count].prev == -1 ? new_pos : extensao_end;
             current->prev = new_pos;
             extensao_count++;
             return new_ext_pos;
@@ -129,7 +137,7 @@ int insert_extension(Registro* r, int extensao_end) {
 
         if (current->next == -1) {
             int new_pos = extensao_count * sizeof(Registro_Extensao<Registro>);
-            EXTENSAO<Registro>[extensao_count] = {r->chave, 9, current_pos, current->prev};
+            EXTENSAO[extensao_count] = {r->chave, 9, current_pos, current->prev};
             current->next = new_pos;
             extensao_count++;
             return extensao_end;
@@ -137,7 +145,7 @@ int insert_extension(Registro* r, int extensao_end) {
 
         current_pos = current->next;
         int next_index = current->next / sizeof(Registro_Extensao<Registro>);
-        current = &EXTENSAO<Registro>[next_index];
+        current = &EXTENSAO[next_index];
         i++;
     }
 
@@ -176,21 +184,7 @@ Indice pesquisa_binaria(int chave, int count, FILE* indice, int* pos) {
 }
 
 template <typename Registro>
-void salvar_extensao() {
-    FILE* extensao_arq = std::fopen("extensao.bin", "wb");
-    std::fwrite(EXTENSAO<Registro>, sizeof(Registro_Extensao<Registro>), extensao_count, extensao_arq);
-    std::fclose(extensao_arq);
-}
-
-template <typename Registro>
-void recuperar_extensao() {
-    FILE* extensao_arq = std::fopen("extensao.bin", "rb");
-    extensao_count = std::fread(EXTENSAO<Registro>, sizeof(Registro_Extensao<Registro>), 100, extensao_arq);
-    std::fclose(extensao_arq);
-}
-
-template <typename Registro>
-void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Registro dados) {
+void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Registro dados, Registro_Extensao<Registro>* EXTENSAO, int& count) {
     int bloco_escolhido = -1;
     int indice_pos = 0;
     int chave = dados.chave;
@@ -208,10 +202,6 @@ void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Regis
 
     int extensao_end = -1;
 
-    if (num_registros == REGISTROS_POR_BLOCO) {
-        std::fread(&extensao_end, sizeof(int), 1, dados_arq);
-    }
-
     int i, j = 0;
     for (i = 0; i < num_registros; i++) {
         if (chave < registros[i].chave) {
@@ -221,93 +211,80 @@ void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Regis
         }
     }
 
+        std::cout << 1;
     if (i < num_registros) {
         if (num_registros + 1 > REGISTROS_POR_BLOCO) {
-            extensao_end = insert_extension<Registro>(&registros[num_registros - 1], extensao_end);
+            extensao_end = registros[num_registros-1].elo;
+            registros[num_registros-1].elo = -1;
+            extensao_end = insert_extension<Registro>(&registros[num_registros-1], extensao_end, EXTENSAO, count);
             if (extensao_end == -1) return;
-            std::fseek(dados_arq, bloco_escolhido + sizeof(Registro) * REGISTROS_POR_BLOCO, SEEK_SET);
-            std::fwrite(&extensao_end, sizeof(int), 1, dados_arq);
         }
 
-        int last_index = num_registros - 1;
-        int start_index = std::min(last_index + 1, REGISTROS_POR_BLOCO - 1);
-        for (j = start_index; j > i; j--) {
+        int end_index = std::min(num_registros, REGISTROS_POR_BLOCO - 1);
+
+        for (j = end_index; j > i; j--) {
             registros[j] = registros[j - 1];
         }
 
         registros[i] = dados;
+        registros[end_index].elo = extensao_end;
+
         int to_write = std::min(num_registros + 1, REGISTROS_POR_BLOCO);
         std::fseek(dados_arq, bloco_escolhido, SEEK_SET);
         std::fwrite(registros, sizeof(Registro), to_write, dados_arq);
     } else if (i == REGISTROS_POR_BLOCO) {
-        extensao_end = insert_extension<Registro>(&dados, extensao_end);
+        extensao_end = insert_extension<Registro>(&registros[num_registros-1], extensao_end, EXTENSAO, count);
         if (extensao_end == -1) return;
-        std::fseek(dados_arq, bloco_escolhido + sizeof(Registro) * REGISTROS_POR_BLOCO, SEEK_SET);
+        registros[num_registros-1].elo = extensao_end;
+        std::fseek(dados_arq, bloco_escolhido + sizeof(Registro) * num_registros-1, SEEK_SET);
         std::fwrite(&extensao_end, sizeof(int), 1, dados_arq);
     } else {
         idx.chave = dados.chave;
         idx.end = bloco_escolhido;
-        std::fseek(indice_arq, 4 + indice_pos, SEEK_SET);
+        std::fseek(indice_arq, indice_pos, SEEK_SET);
         std::fwrite(&idx, sizeof(Indice), 1, indice_arq);
+        std::cout << "sadkjsdakjl";
 
         registros[i] = dados;
         std::fseek(dados_arq, bloco_escolhido, SEEK_SET);
         int bloco_novo_tamanho = num_registros + 1;
         std::fwrite(registros, sizeof(Registro), bloco_novo_tamanho, dados_arq);
-
-        if (bloco_novo_tamanho == REGISTROS_POR_BLOCO) {
-            int extensao_end = -1;
-            std::fwrite(&extensao_end, sizeof(int), 1, dados_arq);
-        }
     }
 }
 
 //implementar função de busca e remoção
-
 int main() {
-    inicializar_extensao<Produto>();
-    recuperar_extensao<Produto>();
+    recuperar_extensao<Produto>(PRODUTOS_EXTENSAO_NAME, EXTENSAO_PRODUTOS);
+    recuperar_extensao<Usuario>(USUARIOS_EXTENSAO_NAME, EXTENSAO_USUARIOS);
 
-    FILE* indice_arq = std::fopen("indice.bin", "r+b");
-    if (!indice_arq) {
-        std::cerr << "Failed to open indice.bin" << std::endl;
-        return 1;
-    }
+    FILE* indice_arq = std::fopen("indice", "r+b");
+    FILE* dados_arq = std::fopen("dados", "r+b");
 
-    FILE* dados_arq = std::fopen("dados.bin", "r+b");
-    if (!dados_arq) {
-        std::cerr << "Failed to open dados.bin" << std::endl;
-        std::fclose(indice_arq);
-        return 1;
-    }
+    std::fseek(indice_arq, 0, SEEK_END);
+    int tamanho_indice = ftell(indice_arq);
+    tamanho_indice /= sizeof(Indice);
+    std::cout << tamanho_indice;
 
-    int tamanho_indice = 0;
-    std::fseek(indice_arq, 0, SEEK_SET);
-    std::fread(&tamanho_indice, sizeof(int), 1, indice_arq);
-
-    if (tamanho_indice == 0) {
-        tamanho_indice = 1;
-        std::fseek(indice_arq, 0, SEEK_SET);
-        std::fwrite(&tamanho_indice, sizeof(int), 1, indice_arq);
-    }
-
-    Produto novo_registro = {199, 999};
-    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+    Produto novo_registro = {440, 999};
+    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro, EXTENSAO_PRODUTOS, extensao_count_produtos);
     novo_registro = {250, 999};
-    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro, EXTENSAO_PRODUTOS, extensao_count_produtos);
 
-    novo_registro = {1230, 999};
-    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+    novo_registro = {999, 999};
+    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro, EXTENSAO_PRODUTOS, extensao_count_produtos);
+    // novo_registro = {1230, 999};
+    // insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
 
-    novo_registro = {590, 999};
-    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+    // novo_registro = {590, 999};
+    // insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
 
-    novo_registro = {9999, 999};
-    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+    // novo_registro = {9999, 999};
+    // insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
 
-    novo_registro = {444, 999};
-    insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
-    salvar_extensao<Produto>();
+    // novo_registro = {444, 999};
+    // insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+
+    salvar_extensao<Produto>(PRODUTOS_EXTENSAO_NAME, EXTENSAO_PRODUTOS);
 
     std::fclose(dados_arq);
     std::fclose(indice_arq);

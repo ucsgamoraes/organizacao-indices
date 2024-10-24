@@ -205,6 +205,6 @@ int main (){
     criar_particoes();
     intercalar_particoes<Produto>(prod_part);
     //imprimir_chaves_arquivo<Produto>(prod_part + "merged");
-    criar_arquivo_indice<Produto>(prod_part + "merged", "index_file");
+    criar_arquivo_indice<Produto>(prod_part + "merged", "indice");
 
 }
