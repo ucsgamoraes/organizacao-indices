@@ -38,25 +38,36 @@ void criar_particoes(){
     char *result;
 
     while((result = fgets(buffer, sizeof(buffer), arquivo_csv)) != NULL){
-        char event_time[50] = {0};
-        char event_type[10] = {0};
-        int product_id = 0;
-        int category_id = 0;
         char category_code[100] = {0};
-        char brand[40] = {0};
-        float price = 0;
-        int user_id = 0;
         char user_session[100] = {0};
 
-        sscanf(buffer, "%49[^,],%9[^,],%d,%d,%99[^,],%29[^,],%f,%d,%99[^,]", event_time, event_type, &product_id, 
-        &category_id, category_code, brand, &price, &user_id, user_session);
+        Produto novoProduto;
+        Usuario novoUsuario;
 
-        produtos[entry_index] = Produto {product_id, price, category_id, 0};
-        strncpy(produtos[entry_index].brand, brand, 40);
+        novoProduto.removido = 0;
+        novoProduto.elo = -1;
 
-        usuarios[entry_index] = Usuario {user_id, 0};
-        strncpy(usuarios[entry_index].event_time, event_time, 50);
-        strncpy(usuarios[entry_index].event_type, event_type, 10);
+        novoUsuario.removido = 0;
+        novoUsuario.elo = -1;
+    
+        sscanf(buffer, "%[^,],%[^,],%d,%d,%[^,],%[^,],%f,%d,%[^,]", 
+            &novoUsuario.event_time, 
+            &novoUsuario.event_type, 
+            &novoProduto.chave, 
+            &novoProduto.category, 
+            &category_code, 
+            &novoProduto.brand, 
+            &novoProduto.price, 
+            &novoUsuario.chave, 
+            user_session
+        );
+
+        produtos[entry_index] = novoProduto;
+        usuarios[entry_index] = novoUsuario;
+
+        // strncpy(produtos[entry_index].brand, brand, 40);
+        // strncpy(usuarios[entry_index].event_time, event_time, 50);
+        // strncpy(usuarios[entry_index].event_type, event_type, 10);
         
         entry_index++;
 
@@ -100,7 +111,7 @@ struct RegistroMenor {
 };
 
 template <typename Registro>
-void intercalar_particoes(const std::string partition_label) {
+void intercalar_particoes(const std::string partition_label, const std::string output_name) {
     FILE* particoes[MAX_OPEN_FILES];
     FILE* particao_saida;
     int i = 0;
@@ -122,7 +133,7 @@ void intercalar_particoes(const std::string partition_label) {
     }
 
     //arquivo de saída
-    particao_saida = std::fopen((partition_label + "merged").c_str(), "wb");
+    particao_saida = std::fopen(output_name.c_str(), "wb");
 
     //intercalar
     while (!fila_prioridade.empty()) {
@@ -155,7 +166,7 @@ void imprimir_chaves_arquivo(const std::string& merged_file) {
     }
 
     Registro registro_lido;
-    // Ler cada registro até o final do arquivo
+    //ler cada registro até o final do arquivo
     while (std::fread(&registro_lido, sizeof(Registro), 1, arquivo) == 1) {
         std::cout << "Chave: " << registro_lido.chave << std::endl;
     }
@@ -173,27 +184,25 @@ void criar_arquivo_indice(const std::string& merged_file, const std::string& ind
         return;
     }
 
-    Registro buffer[REGISTROS_POR_BLOCO];  // Array para armazenar um bloco de registros
+    Registro buffer[REGISTROS_POR_BLOCO];
     Indice indice;
     long first_offset;
 
-    // Processa o arquivo em blocos
     while (true) {
-        // Salva o offset do primeiro registro do bloco
+        //salva o offset do primeiro registro do bloco
         first_offset = std::ftell(arquivo);
 
-        // Lê o bloco de registros
+        //lê o bloco de registros
         size_t registros_lidos = std::fread(buffer, sizeof(Registro), REGISTROS_POR_BLOCO, arquivo);
-        if (registros_lidos == 0) break;  // Se nada foi lido, terminamos
+        if (registros_lidos == 0) break;
 
-        // Cria o índice para o bloco lido
-        indice.chave = buffer[registros_lidos - 1].chave;  // A última chave do bloco
-        indice.end = first_offset;  // O offset do primeiro registro do bloco
+        //cria o índice para o bloco lido
+        indice.chave = buffer[registros_lidos - 1].chave;
+        indice.end = first_offset;
 
-        // Escreve o índice no arquivo de índices
+        //escreve o índice no arquivo de índices
         std::fwrite(&indice, sizeof(Indice), 1, arquivo_indice);
 
-        // Se lemos menos registros que o bloco completo, finalizamos
         if (registros_lidos < REGISTROS_POR_BLOCO) break;
     }
 
@@ -203,8 +212,12 @@ void criar_arquivo_indice(const std::string& merged_file, const std::string& ind
 
 int main (){
     criar_particoes();
-    intercalar_particoes<Produto>(prod_part);
+    intercalar_particoes<Produto>(prod_part, "produtos_merged.bin");
+    criar_arquivo_indice<Produto>("produtos_merged.bin", "produtos_indice.bin");
+    imprimir_chaves_arquivo<Produto>("produtos_merged.bin");
+
+    intercalar_particoes<Produto>(prod_part, "usuarios_merged.bin");
     //imprimir_chaves_arquivo<Produto>(prod_part + "merged");
-    criar_arquivo_indice<Produto>(prod_part + "merged", "indice");
+    criar_arquivo_indice<Produto>("usuarios_merged.bin", "usuarios_indice.bin");
 
 }
