@@ -181,12 +181,16 @@ Indice pesquisa_binaria(int chave, int count, FILE* indice, int* pos) {
 }
 
 template <typename Registro>
-void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Registro dados, Registro_Extensao<Registro>* EXTENSAO, int& count) {
+void insert_register(FILE* dados_arq, FILE* indice_arq, Registro dados, Registro_Extensao<Registro>* EXTENSAO, int& count) {
     int bloco_escolhido = -1;
     int indice_pos = 0;
     int chave = dados.chave;
 
-    Indice idx = pesquisa_binaria<Registro>(dados.chave, indice_tamano, indice_arq, &indice_pos);
+    std::fseek(indice_arq, 0, SEEK_END);
+    int tamanho_indice = ftell(indice_arq);
+    tamanho_indice /= sizeof(Indice);
+
+    Indice idx = pesquisa_binaria<Registro>(dados.chave, tamanho_indice,indice_arq, &indice_pos);
     bloco_escolhido = idx.end;
 
     if (idx.chave == dados.chave) {
@@ -250,9 +254,13 @@ void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Regis
 }
 
 template <typename Registro>
-Registro* buscar_registro (int chave, FILE* dados_arq, int indice_tamanho, FILE* indice_arq, int& file_pos, Registro_Extensao<Registro>* EXTENSAO){
+Registro* buscar_registro (int chave, FILE* dados_arq, FILE* indice_arq, int& file_pos, Registro_Extensao<Registro>* EXTENSAO){
+    std::fseek(indice_arq, 0, SEEK_END);
+    int tamanho_indice = ftell(indice_arq);
+    tamanho_indice /= sizeof(Indice);
+
     int indice_pos,bloco_escolhido = 0;
-    Indice idx = pesquisa_binaria<Registro>(chave, indice_tamanho, indice_arq, &indice_pos);
+    Indice idx = pesquisa_binaria<Registro>(chave, tamanho_indice, indice_arq, &indice_pos);
     bloco_escolhido = idx.end;
 
     Registro* registro_return = (Registro*)malloc(sizeof(Registro));
@@ -279,6 +287,10 @@ Registro* buscar_registro (int chave, FILE* dados_arq, int indice_tamanho, FILE*
     Registro_Extensao<Registro>* current = &EXTENSAO[extensao_index];
     int current_pos = extensao_end;
 
+    if (current == NULL){
+        return NULL;
+    }
+
     i =0;
 
     while (i < TAMANHO_EXTENSAO) {
@@ -301,62 +313,152 @@ Registro* buscar_registro (int chave, FILE* dados_arq, int indice_tamanho, FILE*
 }
 
 template <typename Registro>
-void remover_registro (int chave, FILE* dados_arq, int indice_tamanho, FILE* indice_ar, Registro_Extensao<Registro>* EXTENSAO) {
+int remover_registro (int chave, FILE* dados_arq, FILE* indice_ar, Registro_Extensao<Registro>* EXTENSAO) {
     int reg_pos = 0;
-    Registro* reg = buscar_registro(chave, dados_arq, indice_tamanho, indice_ar, reg_pos, EXTENSAO);
+    Registro* reg = buscar_registro(chave, dados_arq, indice_ar, reg_pos, EXTENSAO);
     if(reg == NULL) {
-        std::cout << "Registro não existe!";
+        return 0;
     }
-    reg.removido = true;
+    reg->removido = true;
 
     std::fseek(dados_arq, reg_pos, SEEK_SET);
     std::fwrite(reg, sizeof(Registro), 1, dados_arq);
+    return 1;
 } 
 
 //implementar função de busca e remoção
-int main() {
-    recuperar_extensao<Produto>(PRODUTOS_EXTENSAO_NAME, EXTENSAO_PRODUTOS, extensao_count_produtos);
-    recuperar_extensao<Usuario>(USUARIOS_EXTENSAO_NAME, EXTENSAO_USUARIOS, extensao_count_usuarios);
+int testes() {
+    //qual a marca de um produto
+    {
+        FILE* indice_arq = std::fopen("produtos_indice.bin", "r+b");
+        FILE* dados_arq = std::fopen("produtos_merged.bin", "r+b");
 
-    FILE* indice_arq = std::fopen("produtos_indice.bin", "r+b");
-    FILE* dados_arq = std::fopen("produtos_merged.bin", "r+b");
+        int reg_pos = 0;
+        int product_id = 123;
+        Produto* reg = buscar_registro<Produto>(product_id, dados_arq, indice_arq, reg_pos, EXTENSAO_PRODUTOS);
 
-    std::fseek(indice_arq, 0, SEEK_END);
-    int tamanho_indice = ftell(indice_arq);
-    tamanho_indice /= sizeof(Indice);
+        if (reg == NULL){
+            std::cout << "Produto nao existe!";
+        }else{
+            std::cout << "Chave: " << reg->chave << std::endl;
+            std::cout << "Brand: " << reg->brand << std::endl;
+            std::cout << "Price: " << reg->price << std::endl;
 
+            std::fclose(dados_arq);
+            std::fclose(indice_arq);
+        }
 
-    int reg_pos = 0;
-    Produto* reg = buscar_registro<Produto>(1005135, dados_arq, tamanho_indice, indice_arq, reg_pos, EXTENSAO_PRODUTOS);
-
-    if (reg == NULL){
-        std::cout << "Produto não existe!";
-        return 0;
     }
-    std::cout << "Chave: " << reg->chave << std::endl;
-    std::cout << "Brand: " << reg->brand<< std::endl;
-    std::cout << "Price: " << reg->price << std::endl;
 
-    //quais eventos algum usuario criou
+    //quando e qual foi o primeiro evento de um usuario
+    {
+        FILE* indice_arq = std::fopen(USUARIOS_INDICE_NAME, "r+b");
+        FILE* dados_arq = std::fopen(USUARIOS_DADOS_NAME, "r+b");
 
+        int reg_pos = 0;
+        int user_id = 520088904;
+        Usuario* reg = buscar_registro<Usuario>(user_id, dados_arq, indice_arq, reg_pos, EXTENSAO_USUARIOS);
 
+        if (reg == NULL){
+            std::cout << "Usuario nao existe!";
+            return 0;
+        }else{
+            std::cout << "Chave: " << reg->chave << std::endl;
+            std::cout << "Tipo de evento: " << reg->event_type << std::endl;
+            std::cout << "Horario: " << reg->event_time << std::endl;
 
-    // novo_registro = {1230, 999};
-    // insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+            std::fclose(dados_arq);
+            std::fclose(indice_arq);
+        }
 
-    // novo_registro = {590, 999};
-    // insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+    }
+    return 0;
+}
 
-    // novo_registro = {9999, 999};
-    // insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+void menu() {
+    FILE* indice_arq = std::fopen(PRODUTOS_INDICE_NAME, "r+b");
+    FILE* dados_arq = std::fopen(PRODUTOS_DADOS_NAME, "r+b");
 
-    // novo_registro = {444, 999};
-    // insert_register(dados_arq, indice_arq, tamanho_indice, novo_registro);
+    int opcao;
+    do {
+        printf("\nMenu:\n");
+        printf("1. Adicionar Produto\n");
+        printf("2. Buscar Produto\n");
+        printf("3. Remover Produto\n");
+        printf("0. Sair\n");
+        printf("Escolha uma opcao: ");
+        scanf("%d", &opcao);
 
-    //salvar_extensao<Produto>(PRODUTOS_EXTENSAO_NAME, EXTENSAO_PRODUTOS, extensao_count_produtos);
+        switch (opcao) {
+            case 1: {
+                Produto produto;
+                
+                printf("Digite o ID do produto: ");
+                scanf("%d", &produto.chave);
+                
+                printf("Digite a marca do produto: ");
+                scanf("%s", produto.brand);
+                
+                printf("Digite o preco do produto: ");
+                scanf("%f", &produto.price);
+                
+                int reg_pos = 0;
+                Produto *reg = buscar_registro<Produto>(produto.chave, dados_arq, indice_arq, reg_pos, EXTENSAO_PRODUTOS);
+
+                if (reg != NULL) {
+                    std::cout << "Produto ja existe.";
+                    return;
+                }
+
+                insert_register<Produto>(dados_arq, indice_arq, produto, EXTENSAO_PRODUTOS, extensao_count_produtos);
+                std::cout << "Produto inserido com sucesso.";
+                break;
+            }
+            case 2: {
+                int chave;
+                printf("Digite a chave do produto para buscar: ");
+                scanf("%d", &chave);
+                
+                int reg_pos = 0;
+                Produto *reg = buscar_registro<Produto>(chave, dados_arq, indice_arq, reg_pos, EXTENSAO_PRODUTOS);
+
+                if (reg == NULL) {
+                    std::cout << "Produto nao existe.";
+                    break;
+                }
+
+                std::cout << "Chave: " << reg->chave << std::endl;
+                std::cout << "Marca: " << reg->brand << std::endl;
+                std::cout << "Preco: " << reg->price << std::endl;
+                break;
+            }
+            case 3: {
+                int chave;
+                printf("Digite a chave do produto para remover: ");
+                scanf("%d", &chave);
+                remover_registro (chave, dados_arq, indice_arq, EXTENSAO_PRODUTOS);
+                std::cout << "Produto removido.";
+                break;
+            }
+            case 0:
+                printf("Saindo...\n");
+                break;
+            default:
+                printf("Opcao invalida!\n");
+                break;
+        }
+    } while (opcao != 0);
 
     std::fclose(dados_arq);
     std::fclose(indice_arq);
+}
 
-    return 0;
+int main(){
+    recuperar_extensao<Produto>(PRODUTOS_EXTENSAO_NAME, EXTENSAO_PRODUTOS, extensao_count_produtos);
+    recuperar_extensao<Usuario>(USUARIOS_EXTENSAO_NAME, EXTENSAO_USUARIOS, extensao_count_usuarios);
+
+    //testes();
+    menu();
+
+    salvar_extensao<Produto>(PRODUTOS_EXTENSAO_NAME, EXTENSAO_PRODUTOS, extensao_count_produtos);
 }

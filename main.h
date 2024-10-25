@@ -37,8 +37,14 @@ struct Registro_Extensao {
 
 //EXTENSAO
 #define TAMANHO_EXTENSAO 100
+
 #define PRODUTOS_EXTENSAO_NAME "produtos_extensao.bin"
+#define PRODUTOS_DADOS_NAME "produtos_merged.bin"
+#define PRODUTOS_INDICE_NAME "produtos_indice.bin"
+
 #define USUARIOS_EXTENSAO_NAME "usuarios_extensao.bin"
+#define USUARIOS_DADOS_NAME "usuarios_merged.bin"
+#define USUARIOS_INDICE_NAME "usuarios_indice.bin"
 
 Registro_Extensao<Produto> EXTENSAO_PRODUTOS[TAMANHO_EXTENSAO] = {0, -1, -1};
 Registro_Extensao<Usuario> EXTENSAO_USUARIOS[TAMANHO_EXTENSAO] = {0, -1, -1};
@@ -59,4 +65,10 @@ template <typename Registro>
 int insert_extension(Registro* r, int extensao_end, Registro_Extensao<Registro>* EXTENSAO, int &extensao_count);
 
 template <typename Registro>
-void insert_register(FILE* dados_arq, FILE* indice_arq, int indice_tamano, Registro dados, Registro_Extensao<Registro>* EXTENSAO, int& count);
+void insert_register(FILE* dados_arq, FILE* indice_arq, Registro dados, Registro_Extensao<Registro>* EXTENSAO, int& count);
+
+template <typename Registro>
+Registro* buscar_registro (int chave, FILE* dados_arq, FILE* indice_arq, int& file_pos, Registro_Extensao<Registro>* EXTENSAO);
+
+template <typename Registro>
+int remover_registro (int chave, FILE* dados_arq, FILE* indice_ar, Registro_Extensao<Registro>* EXTENSAO);

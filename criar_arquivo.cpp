@@ -7,7 +7,8 @@
 #define MAX_LINE_LEN 1024
 #define MAX_BUFFER_SIZE 100 
 #define MAX_OPEN_FILES 1024
-#define PARTITIONS_ENTRIES 5
+#define PARTITIONS_ENTRIES 1024 
+#define LIMIT 100000
 
 const char* NOME_ARQUIVO = "2019-Oct.csv";
 const std::string prod_part = "produtos_particoes/produto_part_";
@@ -34,10 +35,11 @@ void criar_particoes(){
     usuarios_part_file = std::fopen((user_part + part_number).c_str(), "wb+");
 
     char buffer[MAX_LINE_LEN];
+    int count = 0;
     int entry_index = 0;
     char *result;
 
-    while((result = fgets(buffer, sizeof(buffer), arquivo_csv)) != NULL){
+    while((result = fgets(buffer, sizeof(buffer), arquivo_csv)) != NULL && count < LIMIT){
         char category_code[100] = {0};
         char user_session[100] = {0};
 
@@ -70,6 +72,7 @@ void criar_particoes(){
         // strncpy(usuarios[entry_index].event_type, event_type, 10);
         
         entry_index++;
+        count ++;
 
         if (entry_index == PARTITIONS_ENTRIES) {
             current_patition++;
@@ -97,7 +100,6 @@ void criar_particoes(){
         std::fclose(produtos_part_file);
         std::fclose(usuarios_part_file);
     }
-    
     fclose(arquivo_csv);
 }
 
@@ -212,12 +214,10 @@ void criar_arquivo_indice(const std::string& merged_file, const std::string& ind
 
 int main (){
     criar_particoes();
+
     intercalar_particoes<Produto>(prod_part, "produtos_merged.bin");
     criar_arquivo_indice<Produto>("produtos_merged.bin", "produtos_indice.bin");
-    imprimir_chaves_arquivo<Produto>("produtos_merged.bin");
 
-    intercalar_particoes<Produto>(prod_part, "usuarios_merged.bin");
-    //imprimir_chaves_arquivo<Produto>(prod_part + "merged");
-    criar_arquivo_indice<Produto>("usuarios_merged.bin", "usuarios_indice.bin");
-
+    intercalar_particoes<Usuario>(user_part, "usuarios_merged.bin");
+    criar_arquivo_indice<Usuario>("usuarios_merged.bin", "usuarios_indice.bin");
 }
